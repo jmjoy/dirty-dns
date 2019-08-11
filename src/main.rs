@@ -2,6 +2,10 @@ use std::io::{Result, Read};
 use std::io::{Error, ErrorKind};
 use std::net::{Ipv4Addr,Ipv6Addr};
 use std::net::UdpSocket;
+use std::fs::File;
+use toml::Value;
+use std::collections::HashMap;
+use serde_derive::Deserialize;
 
 pub struct BytePacketBuffer {
     pub buf: [u8; 512],
@@ -682,9 +686,15 @@ fn lookup(qname: &str, qtype: QueryType, server: (&str, u16)) -> Result<DnsPacke
     DnsPacket::from_buffer(&mut res_buffer)
 }
 
-fn lookup_regexp_hack(qname: &str, qtype: QueryType) -> Result<DnsPacket> {
+#[derive(Debug, Deserialize)]
+struct Config {
+    address: HashMap<String, String>,
+}
+
+fn lookup_regexp_hack(qname: &str, qtype: QueryType, config: &Config) -> Result<DnsPacket> {
     let mut dns_packet = DnsPacket::new();
     dns_packet.header.rescode = ResultCode::NOERROR;
+
     dns_packet.answers.push(DnsRecord::A {
         domain: qname.to_owned(),
         addr: match "127.0.0.1".parse() {
@@ -700,9 +710,43 @@ fn lookup_regexp_hack(qname: &str, qtype: QueryType) -> Result<DnsPacket> {
 }
 
 fn main() {
-    let server = ("8.8.8.8", 53);
+    let clap_app = clap::App::new("dns-regex")
+        .version("0.1.0")
+        .author("__JM_Joy__ <918734043@qq.com>")
+        .about("A simple dns server support regexp server name.")
+        .arg(clap::Arg::with_name("host")
+            .short("h")
+            .long("host")
+            .value_name("HOST")
+            .help("Which host the service to listen.")
+            .takes_value(true))
+        .arg(clap::Arg::with_name("port")
+            .short("p")
+            .long("port")
+            .value_name("PORT")
+            .help("Which port the service to listen.")
+            .takes_value(true))
+        .arg(clap::Arg::with_name("config-file")
+            .long("config-file")
+            .value_name("PATH")
+            .help("Set config file.")
+            .required(true)
+            .takes_value(true));
 
-    let socket = UdpSocket::bind(("0.0.0.0", 11153)).unwrap();
+    let matches = clap_app.get_matches();
+
+    let host = matches.value_of("host").unwrap_or("0.0.0.0");
+    let port: u16 = matches.value_of("port").unwrap_or("53").parse().expect("Must be a number between 1 ~ 65535.");
+    let config_file = matches.value_of("config-file").unwrap_or("");
+
+    let socket = UdpSocket::bind((host, port)).unwrap();
+
+    let mut file = File::open(config_file).unwrap();
+    let mut content = String::new();
+    file.read_to_string(&mut content).unwrap();
+    let config: Config = toml::from_str(&content).unwrap();
+
+    dbg!(&config);
 
     loop {
         let mut req_buffer = BytePacketBuffer::new();
@@ -736,7 +780,7 @@ fn main() {
             println!("Received query: {:?}", question);
 
 //            if let Ok(result) = lookup(&question.name, question.qtype, server) {
-            if let Ok(result) = lookup_regexp_hack(&question.name, question.qtype) {
+            if let Ok(result) = lookup_regexp_hack(&question.name, question.qtype, &config) {
                 packet.questions.push(question.clone());
                 packet.header.rescode = result.header.rescode;
 
