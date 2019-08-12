@@ -1,2 +1,3 @@
 [address]
-'w-(.*\.jmjoy\.top|.*\.jmjoy\.com)' = "127.0.0.1"
+'/w-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "127.0.0.1"
+'/(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "`echo 127.0.0.1`"
