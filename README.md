@@ -8,7 +8,7 @@ Modify from [dnsguide sample4](https://github.com/EmilHernvall/dnsguide/blob/mas
 
 ```
 USAGE:
-    dns-regex [OPTIONS] --config-file <PATH>
+    dirty-dns [OPTIONS] --config-file <PATH>
 
 FLAGS:
         --help       Prints help information
@@ -23,13 +23,9 @@ OPTIONS:
 ## Example Config
 
 ```toml
-# Array of address
-[[address]]
-addr = '/w-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' # regexp surround with //
-ip = "127.0.0.1"
-
-[[address]]
-addr = '/(.*\.jmjoy\.top|.*\.jmjoy\.com)/'
-ip = "`echo 127.0.0.1`" # executeable command surround with ``
+# Check query name is match left address or regexp.
+[address]
+'/w-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "127.0.0.1"       # regexp surround with //
+'/(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "`echo 127.0.0.1`"  # executeable command surround with ``
 ```
 

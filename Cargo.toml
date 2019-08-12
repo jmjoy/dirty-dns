@@ -1,5 +1,5 @@
 [package]
-name = "dns-regex"
+name = "dirty-dns"
 version = "0.1.0"
 authors = ["__JM_Joy__ <918734043@qq.com>"]
 edition = "2018"
@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-toml = "0.5.1"
+toml = {version = "0.5.1", features = ["preserve_order"]}
 clap = "2.33.0"
 regex = "1.2.0"
 serde_derive = "1.0.98"

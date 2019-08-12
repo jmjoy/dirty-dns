@@ -715,7 +715,7 @@ fn lookup(qname: &str, qtype: QueryType, server: (&str, u16)) -> Result<DnsPacke
 
 #[derive(Debug, Deserialize)]
 struct Config {
-    address:  Vec<HashMap<String, String>>,
+    address: Table,
 }
 
 enum AddressKey {
@@ -779,11 +779,8 @@ struct AddressMatcher {
 impl AddressMatcher {
     fn new_from_config(config: &Config) -> std::result::Result<Self, regex::Error> {
         let mut vec = Vec::new();
-        for map in &config.address {
-            vec.push(
-                (AddressKey::new(map.get("addr").unwrap())?,
-                IpValue::new(map.get("ip").unwrap()))
-            )
+        for (addr_text, ip_text) in &config.address {
+            vec.push((AddressKey::new(addr_text)?, IpValue::new(ip_text.as_str().unwrap())));
         }
         Ok(Self { inner: vec })
     }
