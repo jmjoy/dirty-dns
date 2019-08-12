@@ -715,7 +715,7 @@ fn lookup(qname: &str, qtype: QueryType, server: (&str, u16)) -> Result<DnsPacke
 
 #[derive(Debug, Deserialize)]
 struct Config {
-    address:  Table,
+    address:  Vec<HashMap<String, String>>,
 }
 
 enum AddressKey {
@@ -757,14 +757,18 @@ impl IpValue {
     }
 
     fn value(&self) -> Result<String> {
-        let s = match self {
-            IpValue::Raw(text) => text,
+        match self {
+            IpValue::Raw(text) => Ok(text.to_owned()),
             IpValue::Cmd(cmd) => {
                 let output = Command::new("bash").arg("-c").arg(cmd).output()?;
-                return Ok(String::from_utf8(output.stdout).unwrap_or("".to_owned()));
+                if output.status.success() {
+                    Ok(String::from_utf8(output.stdout).unwrap_or("".to_owned()))
+                } else {
+                    eprintln!("CmdError: {}", String::from_utf8(output.stderr).unwrap_or("".to_owned()).trim());
+                    Ok("".to_owned())
+                }
             },
-        };
-        Ok(s.to_owned())
+        }
     }
 }
 
@@ -775,15 +779,18 @@ struct AddressMatcher {
 impl AddressMatcher {
     fn new_from_config(config: &Config) -> std::result::Result<Self, regex::Error> {
         let mut vec = Vec::new();
-        for (addr_text, ip_text) in &config.address {
-            vec.push((AddressKey::new(addr_text)?, IpValue::new(ip_text.as_str().unwrap())))
+        for map in &config.address {
+            vec.push(
+                (AddressKey::new(map.get("addr").unwrap())?,
+                IpValue::new(map.get("ip").unwrap()))
+            )
         }
         Ok(Self { inner: vec })
     }
 
     fn matches(&self, qname: &str) -> Result<Option<String>> {
         for (address_key, ip_value) in &self.inner {
-            if dbg!(address_key.is_match(qname)) {
+            if address_key.is_match(qname) {
                 return Ok(Some(ip_value.value()?));
             }
         }
@@ -803,7 +810,7 @@ fn lookup_regexp_hack(
         domain: qname.to_owned(),
         addr: match matcher.matches(qname) {
             Ok(x) => match x {
-                Some(x) => match x.parse() {
+                Some(x) => match x.trim().parse() {
                     Ok(x) => x,
                     Err(_) => {
                         dns_packet.header.rescode = ResultCode::SERVFAIL;
@@ -815,7 +822,7 @@ fn lookup_regexp_hack(
                     return Ok(dns_packet);
                 }
             },
-            Err(_) => {
+            Err(e) => {
                 dns_packet.header.rescode = ResultCode::SERVFAIL;
                 return Ok(dns_packet);
             }

@@ -1,3 +1,7 @@
-[address]
-'/w-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "127.0.0.1"
-'/(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "`echo 127.0.0.1`"
+[[address]]
+addr = '/w-(.*\.jmjoy\.top|.*\.jmjoy\.com)/'
+ip = "127.0.0.1"
+
+[[address]]
+addr = '/(.*\.jmjoy\.top|.*\.jmjoy\.com)/'
+ip = "`echo 127.0.0.1`"
