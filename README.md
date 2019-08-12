@@ -20,3 +20,16 @@ OPTIONS:
     -p, --port <PORT>           Which port the service to listen.
 ```
 
+## Example Config
+
+```toml
+# Array of address
+[[address]]
+addr = '/w-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' # regexp surround with //
+ip = "127.0.0.1"
+
+[[address]]
+addr = '/(.*\.jmjoy\.top|.*\.jmjoy\.com)/'
+ip = "`echo 127.0.0.1`" # executeable command surround with ``
+```
+
