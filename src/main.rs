@@ -806,7 +806,8 @@ fn lookup_regexp_hack(
     let mut dns_packet = DnsPacket::new();
     dns_packet.header.rescode = ResultCode::NOERROR;
 
-    if qtype != QueryType::A || qtype != QueryType::AAAA {
+    if qtype != QueryType::A && qtype != QueryType::AAAA {
+        eprintln!("Unsupported query type: {:?}", qtype);
         dns_packet.header.rescode = ResultCode::SERVFAIL;
         return Ok(dns_packet);
     }
