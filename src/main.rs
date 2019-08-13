@@ -1,15 +1,17 @@
 use regex::Regex;
 use serde_derive::Deserialize;
-use std::collections::{HashMap, BTreeMap};
 use std::fs::File;
 use std::io::{Error, ErrorKind};
 use std::io::{Read, Result};
-use std::net::UdpSocket;
+use std::net::{UdpSocket, SocketAddr};
 use std::net::{Ipv4Addr, Ipv6Addr};
-use std::ops::Add;
-use toml::Value;
 use std::process::Command;
 use toml::value::Table;
+use std::sync::mpsc::channel;
+use std::thread;
+use std::sync::Arc;
+
+static THREAD_NUM: u8 = 16;
 
 pub struct BytePacketBuffer {
     pub buf: [u8; 512],
@@ -691,6 +693,7 @@ impl DnsPacket {
     }
 }
 
+#[allow(dead_code)]
 fn lookup(qname: &str, qtype: QueryType, server: (&str, u16)) -> Result<DnsPacket> {
     let socket = r#try!(UdpSocket::bind(("0.0.0.0", 43210)));
 
@@ -803,6 +806,11 @@ fn lookup_regexp_hack(
     let mut dns_packet = DnsPacket::new();
     dns_packet.header.rescode = ResultCode::NOERROR;
 
+    if qtype != QueryType::A || qtype != QueryType::AAAA {
+        dns_packet.header.rescode = ResultCode::SERVFAIL;
+        return Ok(dns_packet);
+    }
+
     dns_packet.answers.push(DnsRecord::A {
         domain: qname.to_owned(),
         addr: match matcher.matches(qname) {
@@ -819,7 +827,7 @@ fn lookup_regexp_hack(
                     return Ok(dns_packet);
                 }
             },
-            Err(e) => {
+            Err(_) => {
                 dns_packet.header.rescode = ResultCode::SERVFAIL;
                 return Ok(dns_packet);
             }
@@ -827,6 +835,28 @@ fn lookup_regexp_hack(
         ttl: 0,
     });
     Ok(dns_packet)
+}
+
+struct IndexLoop<T> {
+    current: T,
+    max: T,
+}
+
+impl<T> IndexLoop<T> {
+    fn new(max: T, current: T) -> Self {
+        Self {
+            current,
+            max,
+        }
+    }
+}
+
+impl IndexLoop<u8> {
+    fn next(&mut self) -> u8 {
+        let current = self.current;
+        self.current = (self.current + 1) % self.max;
+        current
+    }
 }
 
 fn main() {
@@ -879,6 +909,91 @@ fn main() {
     println!("Load config: {:#?}\n", &config);
 
     let matcher = AddressMatcher::new_from_config(&config).unwrap();
+    let matcher = Arc::new(matcher);
+    let mut index_loop = IndexLoop::new(THREAD_NUM, 0);
+    let mut senders = Vec::new();
+
+    for _ in 0..THREAD_NUM {
+        let matcher = matcher.clone();
+        let socket = socket.try_clone().unwrap();
+        let (sender, receiver) = channel::<(SocketAddr, BytePacketBuffer)>();
+        senders.push(sender);
+
+        thread::spawn(move || {
+            loop {
+                let (src, mut req_buffer) = receiver.recv().unwrap();
+
+                let request = match DnsPacket::from_buffer(&mut req_buffer) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        println!("Failed to parse UDP query packet: {:?}", e);
+                        continue;
+                    }
+                };
+
+                let mut packet = DnsPacket::new();
+                packet.header.id = request.header.id;
+                packet.header.recursion_desired = true;
+                packet.header.recursion_available = true;
+                packet.header.response = true;
+
+                if request.questions.is_empty() {
+                    packet.header.rescode = ResultCode::FORMERR;
+                } else {
+                    let question = &request.questions[0];
+                    println!("Received query: {:?}", question);
+
+                    //            if let Ok(result) = lookup(&question.name, question.qtype, server) {
+                    if let Ok(result) = lookup_regexp_hack(&question.name, question.qtype, &matcher) {
+                        packet.questions.push(question.clone());
+                        packet.header.rescode = result.header.rescode;
+                        println!("Rescode: {:?}", &packet.header.rescode);
+
+                        for rec in result.answers {
+                            println!("Answer: {:?}", rec);
+                            packet.answers.push(rec);
+                        }
+                        for rec in result.authorities {
+                            println!("Authority: {:?}", rec);
+                            packet.authorities.push(rec);
+                        }
+                        for rec in result.resources {
+                            println!("Resource: {:?}", rec);
+                            packet.resources.push(rec);
+                        }
+                    } else {
+                        packet.header.rescode = ResultCode::SERVFAIL;
+                    }
+                }
+
+                let mut res_buffer = BytePacketBuffer::new();
+                match packet.write(&mut res_buffer) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("Failed to encode UDP response packet: {:?}", e);
+                        continue;
+                    }
+                };
+
+                let len = res_buffer.pos();
+                let data = match res_buffer.get_range(0, len) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        println!("Failed to retrieve response buffer: {:?}", e);
+                        continue;
+                    }
+                };
+
+                match socket.send_to(data, src) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("Failed to send response buffer: {:?}", e);
+                        continue;
+                    }
+                };
+            }
+        });
+    }
 
     loop {
         let mut req_buffer = BytePacketBuffer::new();
@@ -890,73 +1005,34 @@ fn main() {
             }
         };
 
-        let request = match DnsPacket::from_buffer(&mut req_buffer) {
-            Ok(x) => x,
-            Err(e) => {
-                println!("Failed to parse UDP query packet: {:?}", e);
-                continue;
-            }
+        let index = index_loop.next();
+        match senders.get(index as usize) {
+            Some(sender) =>
+                match sender.send((src, req_buffer)) {
+                    Ok(_) => {},
+                    Err(e) => {
+                        println!("Failed to send package to channel: {:?}", e);
+                        continue;
+                    }
+            },
+            None => {},
         };
+    }
+}
 
-        let mut packet = DnsPacket::new();
-        packet.header.id = request.header.id;
-        packet.header.recursion_desired = true;
-        packet.header.recursion_available = true;
-        packet.header.response = true;
+#[cfg(test)]
+mod test {
+    use super::*;
 
-        if request.questions.is_empty() {
-            packet.header.rescode = ResultCode::FORMERR;
-        } else {
-            let question = &request.questions[0];
-            println!("Received query: {:?}", question);
-
-            //            if let Ok(result) = lookup(&question.name, question.qtype, server) {
-            if let Ok(result) = lookup_regexp_hack(&question.name, question.qtype, &matcher) {
-                packet.questions.push(question.clone());
-                packet.header.rescode = result.header.rescode;
-                println!("Rescode: {:?}", &packet.header.rescode);
-
-                for rec in result.answers {
-                    println!("Answer: {:?}", rec);
-                    packet.answers.push(rec);
-                }
-                for rec in result.authorities {
-                    println!("Authority: {:?}", rec);
-                    packet.authorities.push(rec);
-                }
-                for rec in result.resources {
-                    println!("Resource: {:?}", rec);
-                    packet.resources.push(rec);
-                }
-            } else {
-                packet.header.rescode = ResultCode::SERVFAIL;
-            }
-        }
-
-        let mut res_buffer = BytePacketBuffer::new();
-        match packet.write(&mut res_buffer) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Failed to encode UDP response packet: {:?}", e);
-                continue;
-            }
-        };
-
-        let len = res_buffer.pos();
-        let data = match res_buffer.get_range(0, len) {
-            Ok(x) => x,
-            Err(e) => {
-                println!("Failed to retrieve response buffer: {:?}", e);
-                continue;
-            }
-        };
-
-        match socket.send_to(data, src) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Failed to send response buffer: {:?}", e);
-                continue;
-            }
-        };
+    #[test]
+    fn test_index_loop() {
+        let mut index_loop = IndexLoop::new(3, 0);
+        assert_eq!(index_loop.next(), 0);
+        assert_eq!(index_loop.next(), 1);
+        assert_eq!(index_loop.next(), 2);
+        assert_eq!(index_loop.next(), 0);
+        assert_eq!(index_loop.next(), 1);
+        assert_eq!(index_loop.next(), 2);
+        assert_eq!(index_loop.next(), 0);
     }
 }
