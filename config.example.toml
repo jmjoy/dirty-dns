@@ -1,3 +1,4 @@
 [address]
 '/w-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "127.0.0.1"
+'/x-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "env(RUST_TEST_IP)"
 '/(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "`sleep 0.1 && echo 127.0.0.2`"

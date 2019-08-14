@@ -26,7 +26,8 @@ OPTIONS:
 ```toml
 # Check query name is match left address or regexp.
 [address]
-'/w-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "127.0.0.1"       # regexp surround with //
-'/(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "`echo 127.0.0.1`"  # executeable command surround with ``
+'/w-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "127.0.0.1"         # regexp surround with //
+'/x-(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "env(RUST_TEST_IP)" # environment argument support
+'/(.*\.jmjoy\.top|.*\.jmjoy\.com)/' = "`echo 127.0.0.1`"    # executeable command surround with ``
 ```
 

@@ -772,6 +772,13 @@ impl IpValue {
         if text.starts_with("`") && text.ends_with("`") {
             let s = &text[1..text.len() - 1];
             IpValue::Cmd(s.to_owned())
+        } else if text.starts_with("env(") && text.ends_with(")") {
+            let env = &text[4..text.len() - 1];
+            let arg = std::env::var(env).expect(&*format!("Environment argument `{}`", env));
+            if arg.is_empty() {
+                panic!("Environment argument `{}` can't be empty.", env);
+            }
+            IpValue::Raw(arg)
         } else {
             IpValue::Raw(text.to_owned())
         }
@@ -925,7 +932,7 @@ fn main() {
         .expect("Must be a number between 1 ~ 65535.");
     let thread_num: usize = matches.value_of("num-thread")
         .map(|x| x.parse().expect("Must be a number."))
-        .unwrap_or_else(|| num_cpus::get());
+        .unwrap_or_else(|| num_cpus::get() - 1);
 
     let config_file = matches.value_of("config-file").unwrap_or("");
 
