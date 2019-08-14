@@ -11,8 +11,6 @@ use std::sync::mpsc::channel;
 use std::thread;
 use std::sync::Arc;
 
-static THREAD_NUM: u8 = 16;
-
 pub struct BytePacketBuffer {
     pub buf: [u8; 512],
     pub pos: usize,
@@ -226,21 +224,32 @@ impl ResultCode {
 pub struct DnsHeader {
     pub id: u16, // 16 bits
 
-    pub recursion_desired: bool,    // 1 bit
-    pub truncated_message: bool,    // 1 bit
-    pub authoritative_answer: bool, // 1 bit
-    pub opcode: u8,                 // 4 bits
+    pub recursion_desired: bool,
+    // 1 bit
+    pub truncated_message: bool,
+    // 1 bit
+    pub authoritative_answer: bool,
+    // 1 bit
+    pub opcode: u8,
+    // 4 bits
     pub response: bool,             // 1 bit
 
-    pub rescode: ResultCode,       // 4 bits
-    pub checking_disabled: bool,   // 1 bit
-    pub authed_data: bool,         // 1 bit
-    pub z: bool,                   // 1 bit
+    pub rescode: ResultCode,
+    // 4 bits
+    pub checking_disabled: bool,
+    // 1 bit
+    pub authed_data: bool,
+    // 1 bit
+    pub z: bool,
+    // 1 bit
     pub recursion_available: bool, // 1 bit
 
-    pub questions: u16,             // 16 bits
-    pub answers: u16,               // 16 bits
-    pub authoritative_entries: u16, // 16 bits
+    pub questions: u16,
+    // 16 bits
+    pub answers: u16,
+    // 16 bits
+    pub authoritative_entries: u16,
+    // 16 bits
     pub resource_entries: u16,      // 16 bits
 }
 
@@ -326,10 +335,14 @@ impl DnsHeader {
 #[derive(PartialEq, Eq, Debug, Clone, Hash, Copy)]
 pub enum QueryType {
     UNKNOWN(u16),
-    A,     // 1
-    NS,    // 2
-    CNAME, // 5
-    MX,    // 15
+    A,
+    // 1
+    NS,
+    // 2
+    CNAME,
+    // 5
+    MX,
+    // 15
     AAAA,  // 28
 }
 
@@ -398,28 +411,33 @@ pub enum DnsRecord {
         qtype: u16,
         data_len: u16,
         ttl: u32,
-    }, // 0
+    },
+    // 0
     A {
         domain: String,
         addr: Ipv4Addr,
         ttl: u32,
-    }, // 1
+    },
+    // 1
     NS {
         domain: String,
         host: String,
         ttl: u32,
-    }, // 2
+    },
+    // 2
     CNAME {
         domain: String,
         host: String,
         ttl: u32,
-    }, // 5
+    },
+    // 5
     MX {
         domain: String,
         priority: u16,
         host: String,
         ttl: u32,
-    }, // 15
+    },
+    // 15
     AAAA {
         domain: String,
         addr: Ipv6Addr,
@@ -770,7 +788,7 @@ impl IpValue {
                     eprintln!("CmdError: {}", String::from_utf8(output.stderr).unwrap_or("".to_owned()).trim());
                     Ok("".to_owned())
                 }
-            },
+            }
         }
     }
 }
@@ -852,8 +870,8 @@ impl<T> IndexLoop<T> {
     }
 }
 
-impl IndexLoop<u8> {
-    fn next(&mut self) -> u8 {
+impl IndexLoop<usize> {
+    fn next(&mut self) -> usize {
         let current = self.current;
         self.current = (self.current + 1) % self.max;
         current
@@ -882,6 +900,13 @@ fn main() {
                 .takes_value(true),
         )
         .arg(
+            clap::Arg::with_name("num-thread")
+                .long("num-thread")
+                .value_name("COUNT")
+                .help("How many thread will spawn.")
+                .takes_value(true),
+        )
+        .arg(
             clap::Arg::with_name("config-file")
                 .long("config-file")
                 .value_name("PATH")
@@ -898,6 +923,10 @@ fn main() {
         .unwrap_or("53")
         .parse()
         .expect("Must be a number between 1 ~ 65535.");
+    let thread_num: usize = matches.value_of("num-thread")
+        .map(|x| x.parse().expect("Must be a number."))
+        .unwrap_or_else(|| num_cpus::get());
+
     let config_file = matches.value_of("config-file").unwrap_or("");
 
     let socket = UdpSocket::bind((host, port)).unwrap();
@@ -911,10 +940,10 @@ fn main() {
 
     let matcher = AddressMatcher::new_from_config(&config).unwrap();
     let matcher = Arc::new(matcher);
-    let mut index_loop = IndexLoop::new(THREAD_NUM, 0);
+    let mut index_loop = IndexLoop::new(thread_num, 0);
     let mut senders = Vec::new();
 
-    for _ in 0..THREAD_NUM {
+    for _ in 0..thread_num {
         let matcher = matcher.clone();
         let socket = socket.try_clone().unwrap();
         let (sender, receiver) = channel::<(SocketAddr, BytePacketBuffer)>();
@@ -1010,13 +1039,13 @@ fn main() {
         match senders.get(index as usize) {
             Some(sender) =>
                 match sender.send((src, req_buffer)) {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(e) => {
                         println!("Failed to send package to channel: {:?}", e);
                         continue;
                     }
-            },
-            None => {},
+                },
+            None => {}
         };
     }
 }

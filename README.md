@@ -17,6 +17,7 @@ FLAGS:
 OPTIONS:
         --config-file <PATH>    Set config file.
     -h, --host <HOST>           Which host the service to listen.
+        --num-thread <COUNT>    How many thread will spawn.
     -p, --port <PORT>           Which port the service to listen.
 ```
 
