@@ -778,6 +778,7 @@ impl IpValue {
             if arg.is_empty() {
                 panic!("Environment argument `{}` can't be empty.", env);
             }
+            println!("Environment argument load: {} = {}", env, arg);
             IpValue::Raw(arg)
         } else {
             IpValue::Raw(text.to_owned())
@@ -843,17 +844,20 @@ fn lookup_regexp_hack(
             Ok(x) => match x {
                 Some(x) => match x.trim().parse() {
                     Ok(x) => x,
-                    Err(_) => {
+                    Err(e) => {
+                        eprintln!("Parse ip address error: {:?}", e);
                         dns_packet.header.rescode = ResultCode::SERVFAIL;
                         return Ok(dns_packet);
                     }
                 },
                 None => {
+                    eprintln!("Not found url for query name");
                     dns_packet.header.rescode = ResultCode::SERVFAIL;
                     return Ok(dns_packet);
                 }
             },
-            Err(_) => {
+            Err(e) => {
+                eprintln!("Match error: {:?}", e);
                 dns_packet.header.rescode = ResultCode::SERVFAIL;
                 return Ok(dns_packet);
             }
