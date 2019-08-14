@@ -833,7 +833,7 @@ fn lookup_regexp_hack(
 
     if qtype != QueryType::A && qtype != QueryType::AAAA {
         eprintln!("Unsupported query type: {:?}", qtype);
-        dns_packet.header.rescode = ResultCode::SERVFAIL;
+        dns_packet.header.rescode = ResultCode::NOTIMP;
         return Ok(dns_packet);
     }
 
