@@ -3,8 +3,24 @@ name = "dirty-dns"
 version = "0.1.0"
 authors = ["__JM_Joy__ <918734043@qq.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "A simple and dirty dns server support match regex query name, get ip by execute command, etc."
+repository = "https://github.com/jmjoy/dirty-dns"
+license = "MulanPSL"
+readme = "README.md"
+keywords = [
+    "rust",
+    "dns",
+    "dns-server",
+    "regex",
+]
+exclude = [
+    ".gitignore",
+    ".travis.yml",
+    "rustfmt.toml",
+    "config.toml",
+    "config.example.toml",
+    "config.test.toml",
+]
 
 [dependencies]
 toml = {version = "0.5.1", features = ["preserve_order"]}
