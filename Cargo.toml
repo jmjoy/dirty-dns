@@ -5,7 +5,7 @@ authors = ["__JM_Joy__ <918734043@qq.com>"]
 edition = "2018"
 description = "A simple and dirty dns server support match regex query name, get ip by execute command, etc."
 repository = "https://github.com/jmjoy/dirty-dns"
-license = "MulanPSL"
+license-file = "LICENSE"
 readme = "README.md"
 keywords = [
     "rust",
