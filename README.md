@@ -1,3 +1,7 @@
+# ⚠️ Deprecated
+
+Prefer to use coredns with [template plugin](https://coredns.io/plugins/template/), which supports matching domain by regex.
+
 # dirty-dns
 
 A simple and dirty dns server support match regex query name, get ip by execute command, etc.
